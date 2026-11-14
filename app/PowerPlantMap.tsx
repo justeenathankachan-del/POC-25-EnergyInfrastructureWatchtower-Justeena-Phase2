@@ -1,17 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { PLANTS_DATA } from "./plantsData";
+import { PLANTS_DATA, PowerPlant } from "./plantsData";
 
-interface Props {
+interface PowerPlantMapProps {
   selectedFuel: string;
   selectedRegion: string;
+  selectedPlant: PowerPlant | null;
+  onSelectPlant: (plant: PowerPlant) => void;
 }
 
-export default function PowerPlantMap({ selectedFuel, selectedRegion }: Props) {
-  // Ensure DOM is fully mounted in the browser before rendering Leaflet
+export default function PowerPlantMap({
+  selectedFuel,
+  selectedRegion,
+  selectedPlant,
+  onSelectPlant,
+}: PowerPlantMapProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -20,60 +26,75 @@ export default function PowerPlantMap({ selectedFuel, selectedRegion }: Props) {
 
   if (!mounted) {
     return (
-      <div className="h-full w-full flex items-center justify-center bg-[#030712] text-slate-500 font-mono text-xs rounded-lg border border-[#1F2937]">
-        Loading Map View...
+      <div className="h-full w-full flex items-center justify-center bg-[#06110D] text-emerald-400 text-xs font-mono">
+        Initializing Global Grid Telemetry...
       </div>
     );
   }
 
   const filteredPlants = PLANTS_DATA.filter((plant) => {
-    const matchFuel = selectedFuel === "All" || plant.fuel.toLowerCase() === selectedFuel.toLowerCase();
-    const matchRegion = selectedRegion === "All" || plant.region.toLowerCase() === selectedRegion.toLowerCase();
-    return matchFuel && matchRegion;
+    const fuelMatch = selectedFuel === "All" || plant.fuel === selectedFuel;
+    const regionMatch = selectedRegion === "All" || plant.region === selectedRegion;
+    return fuelMatch && regionMatch;
   });
 
-  return (
-    <div className="h-full w-full rounded-lg overflow-hidden border border-[#1F2937] relative">
-      <MapContainer
-        center={[39.8283, -98.5795]}
-        zoom={4}
-        scrollWheelZoom={false}
-        className="h-full w-full"
-        style={{ minHeight: "340px", height: "100%", width: "100%", background: "#030712" }}
-      >
-        <TileLayer
-  url="https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png"
-  attribution='&copy; <a href="https://stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-/>
-        {filteredPlants.map((plant) => {
-          const isOnline = plant.status === "Online";
-          const color = isOnline ? "#38BDF8" : "#F59E0B";
+  const getMarkerColor = (plant: PowerPlant) => {
+    if (plant.status === "Maintenance") return "#F97316"; // Alert Orange
+    if (plant.fuel === "Solar" || plant.fuel === "Wind" || plant.fuel === "Geothermal")
+      return "#10B981"; // Renewable Emerald
+    if (plant.fuel === "Hydro" || plant.fuel === "Nuclear")
+      return "#38BDF8"; // Zero-Carbon Baseload Cyan
+    return "#FACC15"; // Thermal / Gas Amber-Gold
+  };
 
-          return (
-            <CircleMarker
-              key={plant.id}
-              center={[plant.lat, plant.lng]}
-              radius={Math.max(6, Math.sqrt(plant.capacityMW) / 3.5)}
-              pathOptions={{
-                color: color,
-                fillColor: color,
-                fillOpacity: 0.8,
-                weight: 1.5,
-              }}
-            >
-              <Popup>
-                <div className="text-slate-900 font-sans p-1 text-xs">
-                  <p className="font-bold text-sm text-slate-950">{plant.name}</p>
-                  <p className="mt-1"><span className="font-semibold">Fuel:</span> {plant.fuel}</p>
-                  <p><span className="font-semibold">Capacity:</span> {plant.capacityMW.toLocaleString()} MW</p>
-                  <p><span className="font-semibold">Region:</span> {plant.region}</p>
-                  <p><span className="font-semibold">Status:</span> {plant.status}</p>
+  return (
+    <MapContainer
+      center={[22, 12]}
+      zoom={2.4}
+      minZoom={2}
+      zoomControl={false}
+      style={{ height: "100%", width: "100%", background: "#06110D" }}
+      className="z-0"
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        className="forest-dark-tiles"
+      />
+
+      {filteredPlants.map((plant) => {
+        const isSelected = selectedPlant?.id === plant.id;
+        const markerColor = getMarkerColor(plant);
+
+        return (
+          <CircleMarker
+            key={plant.id}
+            center={[plant.lat, plant.lng]}
+            radius={isSelected ? 12 : Math.max(6, Math.min(10, plant.capacityMW / 1800))}
+            pathOptions={{
+              color: isSelected ? "#FFFFFF" : markerColor,
+              fillColor: markerColor,
+              fillOpacity: isSelected ? 0.98 : 0.85,
+              weight: isSelected ? 3 : 2,
+            }}
+            eventHandlers={{
+              click: () => onSelectPlant(plant),
+            }}
+          >
+            <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
+              <div className="text-xs font-sans">
+                <div className="font-bold text-slate-900">{plant.name}</div>
+                <div className="text-slate-700">
+                  {plant.fuel} • {plant.capacityMW.toLocaleString()} MW ({plant.status})
                 </div>
-              </Popup>
-            </CircleMarker>
-          );
-        })}
-      </MapContainer>
-    </div>
+                <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                  Click marker for grid telemetry →
+                </div>
+              </div>
+            </Tooltip>
+          </CircleMarker>
+        );
+      })}
+    </MapContainer>
   );
 }
