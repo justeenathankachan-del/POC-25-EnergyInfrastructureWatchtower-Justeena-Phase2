@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+.git
+.gitignore
+.vscode
+.idea
+.env
+.env.*
+!.env.example
+repomix-output.xml
+*.log
